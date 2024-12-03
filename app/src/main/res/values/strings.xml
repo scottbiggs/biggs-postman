@@ -1,0 +1,20 @@
+<resources>
+    <string name="app_name">Biggs\' Postman</string>
+
+    <string name="title">Biggs\' Postman</string>
+    <string name="url">url</string>
+    <string name="body">body</string>
+    <string name="header_key">header key</string>
+    <string name="header_value">header value</string>
+    <string name="trust_all">trust all</string>
+
+    <string name="get">GET</string>
+    <string name="put">PUT</string>
+    <string name="post">POST</string>
+
+    <string name="success_equals">success =\u0020</string>
+    <string name="code_equals">code =\u0020</string>
+    <string name="message_equals">message =\u0020</string>
+    <string name="body_equals">body =\u0020</string>
+
+</resources>
