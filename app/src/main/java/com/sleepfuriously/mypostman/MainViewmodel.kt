@@ -179,12 +179,26 @@ class MainViewmodel : ViewModel() {
         headerList: List<Pair<String, String>> = listOf(),
         trustAll: Boolean) : MyResponse {
 
+        val requestBuilder = Request.Builder()
+
         // Making the request is a little tricky because of the headers.
         // Rather than one chain of builds, I have to separate because the
         // first header must be added with .header(), whereas successive
         // headers need to be done with .addHeader().
-        val requestBuilder = Request.Builder()
-            .url(url)
+
+        try {
+            requestBuilder.url(url)
+        }
+        catch (e: IllegalArgumentException) {
+            Log.e(TAG, "Can't make a real url with $url!")
+            e.printStackTrace()
+            return MyResponse(
+                isSuccessful = false,
+                code = -1,
+                message = e.message ?: "",
+                body = e.cause.toString(),
+                headers = listOf())
+        }
 
         // because of the need to break a good ol' for loop is the way to go
         for (i in headerList.indices) {
@@ -261,8 +275,22 @@ class MainViewmodel : ViewModel() {
         val body = bodyStr.toRequestBody("application/json; charset=utf-8".toMediaType())
 
         val requestBuilder = Request.Builder()
-            .url(url)
-            .post(body)
+
+        try {
+            requestBuilder
+                .url(url)
+                .post(body)
+        }
+        catch (e: IllegalArgumentException) {
+            Log.e(TAG, "Can't make a real url with $url!")
+            e.printStackTrace()
+            return MyResponse(
+                isSuccessful = false,
+                code = -1,
+                message = e.message ?: "",
+                body = e.cause.toString(),
+                headers = listOf())
+        }
 
         headerList.forEachIndexed() { i, header ->
             if (i == 0) {
@@ -317,8 +345,22 @@ class MainViewmodel : ViewModel() {
         val body = bodyStr.toRequestBody("application/json; charset=utf-8".toMediaType())
 
         val requestBuilder = Request.Builder()
-            .url(url)
-            .put(body)
+
+        try {
+            requestBuilder
+                .url(url)
+                .put(body)
+        }
+        catch (e: IllegalArgumentException) {
+            Log.e(TAG, "Can't make a real url with $url!")
+            e.printStackTrace()
+            return MyResponse(
+                isSuccessful = false,
+                code = -1,
+                message = e.message ?: "",
+                body = e.cause.toString(),
+                headers = listOf())
+        }
 
         headerList.forEachIndexed() { i, header ->
             if (i == 0) {
