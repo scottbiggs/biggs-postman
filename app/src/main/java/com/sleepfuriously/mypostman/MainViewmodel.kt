@@ -77,7 +77,7 @@ class MainViewmodel : ViewModel() {
         val allTrustingBuilder = OkHttpClient.Builder()
 
         allTrustingBuilder.sslSocketFactory(sslSocketFactory, trustAllCerts[0] as X509TrustManager)
-        allTrustingBuilder.hostnameVerifier(HostnameVerifier { hostname, session -> true })
+        allTrustingBuilder.hostnameVerifier { _, _ -> true }
 
         // now to make our all-trusting okhttp client
         allTrustingOkHttpClient = allTrustingBuilder.build()

@@ -297,34 +297,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-
-    @Composable
-    private fun DrawBigFontButton(
-        bigFont : Boolean,
-        onClickAction: () -> Unit
-    ) {
-        // for the lower left switch
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-        ) {
-            Button(
-                onClick = onClickAction,
-                modifier = Modifier
-                    .padding(16.dp)
-                    .align(Alignment.BottomStart)
-            ) {
-                Icon(
-                    painter = painterResource(
-                        if (bigFont) R.drawable.baseline_text_increase_24
-                        else R.drawable.baseline_text_decrease_24
-                    ),
-                    contentDescription = "big font button"
-                )
-            }
-        }
-
-    }
 }
 
 
