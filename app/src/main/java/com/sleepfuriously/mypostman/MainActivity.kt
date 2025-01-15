@@ -21,7 +21,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.Button
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -37,7 +36,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.LastBaseline
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
@@ -49,6 +48,8 @@ import com.sleepfuriously.mypostman.ui.theme.MyPostmanTheme
 
 class MainActivity : ComponentActivity() {
 
+    private lateinit var viewmodel: MainViewmodel
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -57,7 +58,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             MyPostmanTheme {
 
-                val viewmodel = MainViewmodel()
+                viewmodel = MainViewmodel()
 
                 // flow results
                 val responseSuccess by viewmodel.successful.collectAsStateWithLifecycle()
@@ -67,13 +68,25 @@ class MainActivity : ComponentActivity() {
 
 
                 // text fields
-                var url by remember { mutableStateOf("") }
-                var sendBody by remember { mutableStateOf("") }
-                var headerKey by remember { mutableStateOf("") }
-                var headerValue by remember { mutableStateOf("") }
+                var url by remember { mutableStateOf(viewmodel.loadUrlData(this)) }
+                var sendBody by remember { mutableStateOf(viewmodel.loadBodyData(this)) }
 
                 // for slider
-                var trustAll by remember { mutableStateOf(false) }
+                var trustAll by remember { mutableStateOf(viewmodel.loadTrustAllData(this)) }
+
+                // Only bothering with ONE header key-value pair
+                val headersOldData = viewmodel.loadHeadersData(this)
+                val oldKey = if (headersOldData.isNotEmpty()) {
+                    headersOldData[0].first
+                }
+                else { "" }
+                val oldValue = if (headersOldData.isNotEmpty()) {
+                    headersOldData[0].second
+                }
+                else { "" }
+
+                var headerKey by remember { mutableStateOf(oldKey) }
+                var headerValue by remember { mutableStateOf(oldValue ?: "") }
 
                 val landscape = LocalConfiguration.current.orientation == ORIENTATION_LANDSCAPE
 
@@ -82,6 +95,9 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier
                         .fillMaxSize()
                 ) { innerPadding ->
+
+                    val ctx = LocalContext.current
+
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
@@ -192,6 +208,7 @@ class MainActivity : ComponentActivity() {
                                 ) {
                                     Button(
                                         onClick = { viewmodel.get(
+                                            ctx = ctx,
                                             url,
                                             headerList = listOf(Pair(headerKey, headerValue)),
                                             trustAll
@@ -204,6 +221,7 @@ class MainActivity : ComponentActivity() {
                                         onClick = {
                                             Log.d(TAG, "POST button click. bodyStr = $sendBody, header = $headerKey, $headerValue")
                                             viewmodel.post(
+                                                ctx = ctx,
                                                 url = url,
                                                 bodyStr = sendBody,
                                                 headerList = listOf(Pair(headerKey, headerValue)),
@@ -218,6 +236,7 @@ class MainActivity : ComponentActivity() {
                                         onClick = {
                                             Log.d(TAG, "PUT button click. bodyStr = $sendBody, header = $headerKey, $headerValue")
                                             viewmodel.put(
+                                                ctx = ctx,
                                                 url = url,
                                                 bodyStr = sendBody,
                                                 headerList = listOf(Pair(headerKey, headerValue)),

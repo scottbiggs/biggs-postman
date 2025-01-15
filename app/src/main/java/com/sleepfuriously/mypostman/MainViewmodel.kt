@@ -1,13 +1,16 @@
 package com.sleepfuriously.mypostman
 
 import android.annotation.SuppressLint
+import android.content.Context
 import android.util.Log
+import androidx.core.content.edit
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -15,7 +18,6 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import java.security.cert.X509Certificate
 import java.util.concurrent.TimeUnit
-import javax.net.ssl.HostnameVerifier
 import javax.net.ssl.SSLContext
 import javax.net.ssl.TrustManager
 import javax.net.ssl.X509TrustManager
@@ -96,12 +98,23 @@ class MainViewmodel : ViewModel() {
      *   [_message]
      */
     fun get(
+        ctx: Context,
         url: String,
         headerList: List<Pair<String, String>> = listOf(),
         trustAll: Boolean = false
     ) {
 
         viewModelScope.launch(Dispatchers.IO) {
+
+            // go ahead and save our data
+            saveData(
+                ctx = ctx,
+                url = url,
+                bodyStr = "",
+                headerList = headerList,
+                trustAll = trustAll
+            )
+
             val response = synchronousGet(url, headerList, trustAll)
 
             _successful.value = response.isSuccessful
@@ -126,12 +139,22 @@ class MainViewmodel : ViewModel() {
      *   [_message]
      */
     fun post(
+        ctx: Context,
         url: String,
         bodyStr: String,
         headerList: List<Pair<String, String>> = listOf(),
         trustAll: Boolean = false
     ) {
         viewModelScope.launch(Dispatchers.IO) {
+            // go ahead and save our data
+            saveData(
+                ctx = ctx,
+                url = url,
+                bodyStr = bodyStr,
+                headerList = headerList,
+                trustAll = trustAll
+            )
+
             val response = synchronousPost(url, bodyStr, headerList, trustAll)
             _successful.value = response.isSuccessful
             _code.value = response.code
@@ -143,12 +166,21 @@ class MainViewmodel : ViewModel() {
     }
 
     fun put(
+        ctx: Context,
         url: String,
         bodyStr: String,
         headerList: List<Pair<String, String>> = listOf(),
         trustAll: Boolean = false
     ) {
         viewModelScope.launch(Dispatchers.IO) {
+            // go ahead and save our data
+            saveData(
+                ctx = ctx,
+                url = url,
+                bodyStr = bodyStr,
+                headerList = headerList,
+                trustAll = trustAll
+            )
             val response = synchronousPut(url, bodyStr, headerList, trustAll)
             _successful.value = response.isSuccessful
             _code.value = response.code
@@ -402,7 +434,97 @@ class MainViewmodel : ViewModel() {
         }
     }
 
+    /**
+     * Save the given data to long-term storage.  This should be called
+     * when the UI is about to exit (and thus kill the viewmodel).
+     *
+     * The data comes from UI components and should be loaded again once
+     * the program re-starts.
+     */
+    fun saveData(
+        ctx: Context,
+        url: String,
+        bodyStr: String,
+        headerList: List<Pair<String, String>>,
+        trustAll: Boolean
+    ) {
+        val prefs = ctx.getSharedPreferences(PREFS_FILENAME, Context.MODE_PRIVATE)
+
+        prefs.edit {
+            putString(PREFS_URL_KEY, url)
+            putString(PREFS_BODY_KEY, bodyStr)
+            putBoolean(PREFS_TRUSTALL_KEY, trustAll)
+        }
+
+        // The headers are a little more complicated:
+        // they are saved as a key-value pairs in a separate file.
+        val headerPrefs = ctx.getSharedPreferences(PREFS_HEADER_FILENAME, Context.MODE_PRIVATE)
+        headerPrefs.edit(commit = true) {   // commit because I want this done BEFORE the next bit
+            clear()     // remove all previous data
+        }
+        headerPrefs.edit {
+            headerList.forEach { headerPair ->
+                putString(headerPair.first, headerPair.second)
+            }
+        }
+    }
+
+    /**
+     * Loads the url that was saved the last run.  If nothing was
+     * found, then empty string is returned.
+     */
+    fun loadUrlData(ctx: Context) : String {
+        val prefs = ctx.getSharedPreferences(PREFS_FILENAME, Context.MODE_PRIVATE)
+        return prefs.getString(PREFS_URL_KEY, "") ?: ""
+    }
+
+    /**
+     * Similar to [loadUrlData], but this returns body string.
+     */
+    fun loadBodyData(ctx: Context) : String {
+        val prefs = ctx.getSharedPreferences(PREFS_FILENAME, Context.MODE_PRIVATE)
+        return prefs.getString(PREFS_BODY_KEY, "") ?: ""
+    }
+
+    /**
+     * Similar to [loadUrlData], but this returns the trust all boolean.
+     * Defaults to false.
+     */
+    fun loadTrustAllData(ctx: Context) : Boolean {
+        val prefs = ctx.getSharedPreferences(PREFS_FILENAME, Context.MODE_PRIVATE)
+        return prefs.getBoolean(PREFS_TRUSTALL_KEY, false)
+    }
+
+    /**
+     * Returns all the pairs of data in the headers file.
+     *
+     * The file will be a list of Pairs that correspond to the key-value
+     * pairs of the header.
+     */
+    fun loadHeadersData(
+        ctx: Context
+    ) : List<Pair<String, String?>> {
+
+        val prefs = ctx.getSharedPreferences(PREFS_HEADER_FILENAME, Context.MODE_PRIVATE)
+
+        // find all the keys
+        val keys = prefs.all.keys
+
+        // create our list of headers
+        val headersList = mutableListOf<Pair<String, String?>>()
+        keys.forEach() { key ->
+            val pair = Pair<String, String?>(
+                key,
+                prefs.getString(key, null)
+            )
+            headersList.add(pair)
+        }
+
+        return headersList
+    }
+
 }
+
 
 //--------------------------------------------------
 //  classes
@@ -471,3 +593,15 @@ private const val TAG = "MainViewmodel"
 
 /** The max number of bytes that we'll look at for a [Response] body (100k) */
 private const val BODY_PEEK_SIZE = 100000L
+
+
+//------------------
+//  prefs
+//------------------
+
+private const val PREFS_FILENAME = "postman_prefs"
+private const val PREFS_HEADER_FILENAME = "postman_header_prefs"
+
+private const val PREFS_URL_KEY = "url"
+private const val PREFS_BODY_KEY = "body"
+private const val PREFS_TRUSTALL_KEY = "trust_all"
