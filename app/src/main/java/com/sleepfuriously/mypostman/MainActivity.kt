@@ -40,6 +40,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -210,6 +211,7 @@ class MainActivity : ComponentActivity() {
                                         onClick = { viewmodel.get(
                                             ctx = ctx,
                                             url,
+                                            body = sendBody,
                                             headerList = listOf(Pair(headerKey, headerValue)),
                                             trustAll
                                         ) }
@@ -305,7 +307,10 @@ class MainActivity : ComponentActivity() {
                                         fontWeight = FontWeight.Bold
                                     )
                                     SelectionContainer {
-                                        Text(responseBody)
+                                        Text(
+                                            responseBody,
+                                            fontFamily = FontFamily.Monospace
+                                        )
                                     }
                                 }
                             }

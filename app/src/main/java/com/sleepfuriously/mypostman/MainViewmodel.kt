@@ -10,12 +10,13 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
+import org.json.JSONArray
+import org.json.JSONObject
 import java.security.cert.X509Certificate
 import java.util.concurrent.TimeUnit
 import javax.net.ssl.SSLContext
@@ -100,6 +101,7 @@ class MainViewmodel : ViewModel() {
     fun get(
         ctx: Context,
         url: String,
+        body: String,
         headerList: List<Pair<String, String>> = listOf(),
         trustAll: Boolean = false
     ) {
@@ -110,7 +112,7 @@ class MainViewmodel : ViewModel() {
             saveData(
                 ctx = ctx,
                 url = url,
-                bodyStr = "",
+                bodyStr = body,
                 headerList = headerList,
                 trustAll = trustAll
             )
@@ -441,7 +443,7 @@ class MainViewmodel : ViewModel() {
      * The data comes from UI components and should be loaded again once
      * the program re-starts.
      */
-    fun saveData(
+    private fun saveData(
         ctx: Context,
         url: String,
         bodyStr: String,
@@ -577,12 +579,31 @@ data class MyResponse(
                 headerList.add(Pair(name, value))
             }
 
+            var indentedJsonStr = ""
+            try {
+                indentedJsonStr =
+                    JSONObject(response.peekBody(BODY_PEEK_SIZE).string()).toString(JSON_INDENT_SPACES)
+            }
+            catch (e: Exception) {
+                // If there was a problem parsing, just display the string as it is
+                // (might be a json array?)
+                try {
+                    indentedJsonStr =
+                        JSONArray(response.peekBody(BODY_PEEK_SIZE).string()).toString(JSON_INDENT_SPACES)
+                }
+                catch (e: Exception) {
+                    // Not a json object nor a json array, just print it
+                    // as it is.
+                    indentedJsonStr = response.peekBody(BODY_PEEK_SIZE).string()
+                }
+            }
+
             return MyResponse(
-                response.isSuccessful,
-                response.code,
-                response.message,
-                response.peekBody(BODY_PEEK_SIZE).string(),
-                headerList
+                isSuccessful = response.isSuccessful,
+                code = response.code,
+                message = response.message,
+                body = indentedJsonStr,
+                headers = headerList
             )
         }
     }
@@ -594,6 +615,7 @@ private const val TAG = "MainViewmodel"
 /** The max number of bytes that we'll look at for a [Response] body (100k) */
 private const val BODY_PEEK_SIZE = 100000L
 
+private const val JSON_INDENT_SPACES = 2
 
 //------------------
 //  prefs
