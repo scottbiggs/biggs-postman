@@ -20,7 +20,11 @@ import androidx.compose.foundation.layout.safeContentPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -29,12 +33,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.layout.LastBaseline
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -60,34 +61,26 @@ class MainActivity : ComponentActivity() {
             MyPostmanTheme {
 
                 viewmodel = MainViewmodel()
+                viewmodel.loadData(this)
 
                 // flow results
                 val responseSuccess by viewmodel.successful.collectAsStateWithLifecycle()
                 val responseBody by viewmodel.responseBody.collectAsStateWithLifecycle()
                 val responseCode by viewmodel.code.collectAsStateWithLifecycle()
                 val responseMessage by viewmodel.message.collectAsStateWithLifecycle()
+                val backActive by viewmodel.backActive.collectAsStateWithLifecycle()
+                val forwardActive by viewmodel.forwardActive.collectAsStateWithLifecycle()
 
 
                 // text fields
-                var url by remember { mutableStateOf(viewmodel.loadUrlData(this)) }
-                var sendBody by remember { mutableStateOf(viewmodel.loadBodyData(this)) }
+                val url by viewmodel.uiUrl.collectAsStateWithLifecycle()
+                val sendBody by viewmodel.uiBody.collectAsStateWithLifecycle()
+
+                val headerKey by viewmodel.uiHeaderKey.collectAsStateWithLifecycle()
+                val headerValue by viewmodel.uiHeaderValue.collectAsStateWithLifecycle()
 
                 // for slider
-                var trustAll by remember { mutableStateOf(viewmodel.loadTrustAllData(this)) }
-
-                // Only bothering with ONE header key-value pair
-                val headersOldData = viewmodel.loadHeadersData(this)
-                val oldKey = if (headersOldData.isNotEmpty()) {
-                    headersOldData[0].first
-                }
-                else { "" }
-                val oldValue = if (headersOldData.isNotEmpty()) {
-                    headersOldData[0].second
-                }
-                else { "" }
-
-                var headerKey by remember { mutableStateOf(oldKey) }
-                var headerValue by remember { mutableStateOf(oldValue ?: "") }
+                val trustAll by viewmodel.uiTrustAll.collectAsStateWithLifecycle()
 
                 val landscape = LocalConfiguration.current.orientation == ORIENTATION_LANDSCAPE
 
@@ -112,17 +105,39 @@ class MainActivity : ComponentActivity() {
                                 .safeContentPadding()      // takes the insets into account (nav bars, etc)
                         ) {
                             item {
-                                Row {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Button(
+                                        modifier = Modifier
+                                            .padding(horizontal = 8.dp),
+                                        onClick = { viewmodel.goBackUi() },
+                                        enabled = backActive
+                                    ) {
+                                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "")
+                                    }
+
+                                    Button(
+                                        modifier = Modifier
+                                            .padding(horizontal = 8.dp),
+                                        onClick = { viewmodel.goForwardUi() },
+                                        enabled = forwardActive
+                                    ) {
+                                        Icon(Icons.AutoMirrored.Filled.ArrowForward, "")
+                                    }
+
+
                                     Text(
                                         stringResource(R.string.title),
                                         style = MaterialTheme.typography.headlineLarge,
-                                        modifier = Modifier.alignBy(LastBaseline)
+                                        modifier = Modifier
+                                            .padding(start = 16.dp)
                                     )
                                     Text(
                                         " v${BuildConfig.VERSION_NAME}",
                                         color = MaterialTheme.colorScheme.primary,
                                         modifier = Modifier
-                                            .alignBy(LastBaseline)
+                                            .align(alignment = Alignment.Top)
                                             .padding(start = 8.dp)
                                     )
                                 }
@@ -135,7 +150,7 @@ class MainActivity : ComponentActivity() {
                                 TextField(
                                     textStyle = TextStyle(fontSize = BIG_FONT_SIZE.sp),
                                     value = url,
-                                    onValueChange = { url = it },
+                                    onValueChange = { viewmodel.changeUrl(it) },
                                     label = { Text(stringResource(R.string.url)) }
                                 )
                             }
@@ -148,7 +163,7 @@ class MainActivity : ComponentActivity() {
                                 TextField(
                                     textStyle = TextStyle(fontSize = BIG_FONT_SIZE.sp),
                                     value = sendBody,
-                                    onValueChange = { sendBody = it },
+                                    onValueChange = { viewmodel.changeUiBody(it) },
                                     label = { Text(stringResource(R.string.body)) }
                                 )
                             }
@@ -165,14 +180,14 @@ class MainActivity : ComponentActivity() {
                                             modifier = Modifier.padding(horizontal = 8.dp),
                                             textStyle = TextStyle(fontSize = BIG_FONT_SIZE.sp),
                                             value = headerKey,
-                                            onValueChange = { headerKey = it },
+                                            onValueChange = { viewmodel.changeUiHeaderKey(it) },
                                             label = { Text(stringResource(R.string.header_key)) }
                                         )
                                         OutlinedTextField(
                                             modifier = Modifier.padding(horizontal = 8.dp),
                                             textStyle = TextStyle(fontSize = BIG_FONT_SIZE.sp),
                                             value = headerValue,
-                                            onValueChange = { headerValue = it },
+                                            onValueChange = { viewmodel.changeUiHeaderValue(it) },
                                             label = { Text(stringResource(R.string.header_value)) }
                                         )
                                     }
@@ -188,14 +203,14 @@ class MainActivity : ComponentActivity() {
                                             modifier = Modifier.padding(horizontal = 8.dp),
                                             textStyle = TextStyle(fontSize = BIG_FONT_SIZE.sp),
                                             value = headerKey,
-                                            onValueChange = { headerKey = it },
+                                            onValueChange = { viewmodel.changeUiHeaderKey(it) },
                                             label = { Text(stringResource(R.string.header_key)) }
                                         )
                                         OutlinedTextField(
                                             modifier = Modifier.padding(horizontal = 8.dp),
                                             textStyle = TextStyle(fontSize = BIG_FONT_SIZE.sp),
                                             value = headerValue,
-                                            onValueChange = { headerValue = it },
+                                            onValueChange = { viewmodel.changeUiHeaderValue(it) },
                                             label = { Text(stringResource(R.string.header_value)) }
                                         )
 
@@ -258,7 +273,7 @@ class MainActivity : ComponentActivity() {
                                     state = trustAll,
                                     label = stringResource(R.string.trust_all),
                                     onStateChange = { checked ->
-                                        trustAll = checked
+                                        viewmodel.changeUiTrustAll(checked)
                                     }
                                 )
                             }

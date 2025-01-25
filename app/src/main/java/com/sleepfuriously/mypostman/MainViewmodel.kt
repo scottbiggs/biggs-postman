@@ -47,9 +47,46 @@ class MainViewmodel : ViewModel() {
     private val _message = MutableStateFlow("")
     var message = _message.asStateFlow()
 
+    private val _backActive = MutableStateFlow(false)
+    var backActive = _backActive.asStateFlow()
+
+    private val _forwardActive = MutableStateFlow(false)
+    var forwardActive = _forwardActive.asStateFlow()
+
+    private val _uiUrl = MutableStateFlow("")
+    var uiUrl = _uiUrl.asStateFlow()
+
+    private val _uiBody = MutableStateFlow("")
+    var uiBody = _uiBody.asStateFlow()
+
+    private val _uiHeaderKey = MutableStateFlow("")
+    var uiHeaderKey = _uiHeaderKey.asStateFlow()
+
+    private val _uiHeaderValue = MutableStateFlow("")
+    var uiHeaderValue = _uiHeaderValue.asStateFlow()
+
+    private val _uiTrustAll = MutableStateFlow(false)
+    var uiTrustAll = _uiTrustAll.asStateFlow()
+
 
     /** use THIS instead of the regular OkHttpClient if we want to trust everyone */
     private val allTrustingOkHttpClient: OkHttpClient
+
+    /**
+     * Stack for remembering ui back states. Each time a GET, PUT, or POST is made,
+     * this is updated.  The ui variables are updated based on this when a call
+     * is made to [goBackUi], [goForwardUi], [pushUiState].
+     *
+     *      https://stackoverflow.com/a/6869625/624814
+     */
+    private val uiStateBackStack = ArrayDeque<MyUiStruct>()
+
+    /**
+     * Stack for remember how to navigate forward.  Part of the forward-back system
+     * with [uiStateBackStack].
+     */
+    private val uiStateForwardStack = ArrayDeque<MyUiStruct>()
+
 
     init {
         /** an array of trust managers that does not validate certificate chains--it trusts everyone! */
@@ -87,6 +124,181 @@ class MainViewmodel : ViewModel() {
     }
 
 
+    //--------------------------------------------------
+    //  functions
+    //--------------------------------------------------
+
+    /**
+     * Use this to change the value of the url in the stateflow.
+     */
+    fun changeUrl(newUrl: String) {
+        _uiUrl.value = newUrl
+    }
+
+    /**
+     * Change the body in the stateflow
+     */
+    fun changeUiBody(newBody: String) {
+        _uiBody.value = newBody
+    }
+
+    fun changeUiHeaderKey(newHeaderKey: String) {
+        _uiHeaderKey.value = newHeaderKey
+    }
+
+    fun changeUiHeaderValue(newHeaderValue: String) {
+        _uiHeaderValue.value = newHeaderValue
+    }
+
+    fun changeUiTrustAll(newTrustAll: Boolean) {
+        _uiTrustAll.value = newTrustAll
+    }
+
+    //---------------------------
+    //  back/forward functions
+    //---------------------------
+
+    /**
+     * Call this whenever the user makes a GET, POST, or PUSH happens.
+     *
+     * side effects
+     *  - Checks to see if the current state is different from the last
+     *  state that was pushed on to [uiStateBackStack].  If it is the
+     *  same, then nothing is done.
+     *
+     *      otherwise:
+     *
+     *  - It will add the current UI state to [uiStateBackStack], saving it
+     *  to go back to.
+     *
+     *  - Enables the back button
+     *
+     *  - Also clears the forward stack [uiStateForwardStack]
+     *
+     *  - Disables the forward button
+     *
+     *      see: https://stackoverflow.com/a/6869625/624814
+     */
+    private fun pushUiState() {
+
+        val currentUiState = getCurrentUiState()
+        val blankUiState = MyUiStruct()
+
+        val topOfStack = uiStateBackStack.lastOrNull()
+
+        // no need to push the same state!
+        if ((topOfStack != null) && (currentUiState == topOfStack)) {
+            return
+        }
+
+        // don't push a blank state onto an empty stack either
+        if (uiStateBackStack.isEmpty() && (currentUiState == blankUiState)) {
+            return
+        }
+
+        uiStateBackStack.add(currentUiState)
+        _backActive.value = true
+
+        // clear the forward stack--we're starting a new direction
+        uiStateForwardStack.clear()
+        _forwardActive.value = false
+    }
+
+    /**
+     * Instruction from the UI to change the state to the previous one.
+     * Does nothing if back stack is empty (shouldn't happen).
+     *
+     * side effects
+     *  - push current ui state onto forward stack
+     *  - pop back stack and set the ui to it.
+     *  - enable forward stack
+     *  - turn off back stack button if back stack is now empty
+     */
+    fun goBackUi() {
+
+        val currentUiState = getCurrentUiState()
+        val blankUiState = MyUiStruct()
+
+        // add current ui to forward stack
+        uiStateForwardStack.add(currentUiState)
+        _forwardActive.value = true
+
+        // Get a saved ui state that is not the same as the current.
+        var newUiState = uiStateBackStack.removeLastOrNull()
+        while ((newUiState == currentUiState) && (newUiState != blankUiState)) {
+            newUiState = uiStateBackStack.removeLastOrNull()
+        }
+
+        // set this as our current ui
+        setCurrentUiState(newUiState ?: blankUiState)
+
+        // do we need to turn off the back button?
+        _backActive.value = uiStateBackStack.isNotEmpty()
+    }
+
+    /**
+     * Move the UI state forward one.
+     *
+     * side effects:
+     *  - push current ui state to back stack
+     *  - pop forward stack and set ui state to that
+     *  - if forward stack is empty, disable forward button
+     */
+    fun goForwardUi() {
+
+        val currentUiState = getCurrentUiState()
+        val blankUiState = MyUiStruct()
+
+        // add current ui to back stack
+        uiStateBackStack.add(currentUiState)
+        _backActive.value = true
+
+        // Get a saved ui state that is not the same as the current.
+        var newUiState = uiStateForwardStack.removeLastOrNull()
+        while ((newUiState == currentUiState) && (newUiState != blankUiState)) {
+            newUiState = uiStateForwardStack.removeLastOrNull()
+        }
+
+        // set this as our current ui
+        setCurrentUiState(newUiState ?: blankUiState)
+
+        if (uiStateForwardStack.isEmpty()) {
+            _forwardActive.value = false
+        }
+    }
+
+    /**
+     * Convenience function that simply returns a [MyUiStruct] representing
+     * the current state of the ui.
+     */
+    private fun getCurrentUiState() : MyUiStruct {
+        return MyUiStruct(
+            url = uiUrl.value,
+            body = uiBody.value,
+            headerKey = uiHeaderKey.value,
+            headerValue = uiHeaderValue.value,
+            trustAll = uiTrustAll.value
+        )
+    }
+
+    private fun setCurrentUiState(
+        newUiState: MyUiStruct = MyUiStruct(
+            url = "",
+            body = "",
+            headerKey = "",
+            headerValue = "",
+            trustAll = false
+        )
+    ) {
+        with(newUiState) {
+            _uiUrl.value = url
+            _uiBody.value = body
+            _uiHeaderKey.value = headerKey
+            _uiHeaderValue.value = headerValue
+            _uiTrustAll.value = trustAll
+        }
+    }
+
     /**
      * Executes a GET to the given url.
      *
@@ -107,6 +319,9 @@ class MainViewmodel : ViewModel() {
     ) {
 
         viewModelScope.launch(Dispatchers.IO) {
+
+            // save ui state
+            pushUiState()
 
             // go ahead and save our data
             saveData(
@@ -157,6 +372,9 @@ class MainViewmodel : ViewModel() {
                 trustAll = trustAll
             )
 
+            // save ui state
+            pushUiState()
+
             val response = synchronousPost(url, bodyStr, headerList, trustAll)
             _successful.value = response.isSuccessful
             _code.value = response.code
@@ -183,6 +401,9 @@ class MainViewmodel : ViewModel() {
                 headerList = headerList,
                 trustAll = trustAll
             )
+            // save ui state
+            pushUiState()
+
             val response = synchronousPut(url, bodyStr, headerList, trustAll)
             _successful.value = response.isSuccessful
             _code.value = response.code
@@ -436,6 +657,7 @@ class MainViewmodel : ViewModel() {
         }
     }
 
+
     /**
      * Save the given data to long-term storage.  This should be called
      * when the UI is about to exit (and thus kill the viewmodel).
@@ -472,10 +694,31 @@ class MainViewmodel : ViewModel() {
     }
 
     /**
+     * Loads all the UI data from our saved prefs.  Should be called by
+     * the MainActivity right after this (viewmodel) is initialized.
+     *
+     * The results of this load will be found in various flows.
+     */
+    fun loadData(ctx: Context) {
+        _uiUrl.value = loadUrlData(ctx)
+        _uiBody.value = loadBodyData(ctx)
+        _uiTrustAll.value = loadTrustAllData(ctx)
+
+        val headerList = loadHeadersData(ctx)
+        if (headerList.isNotEmpty()) {
+            _uiHeaderKey.value = headerList[0].first
+            _uiHeaderValue.value = headerList[0].second ?: ""
+        }
+
+        // remember this
+        pushUiState()
+    }
+
+    /**
      * Loads the url that was saved the last run.  If nothing was
      * found, then empty string is returned.
      */
-    fun loadUrlData(ctx: Context) : String {
+    private fun loadUrlData(ctx: Context) : String {
         val prefs = ctx.getSharedPreferences(PREFS_FILENAME, Context.MODE_PRIVATE)
         return prefs.getString(PREFS_URL_KEY, "") ?: ""
     }
@@ -483,7 +726,7 @@ class MainViewmodel : ViewModel() {
     /**
      * Similar to [loadUrlData], but this returns body string.
      */
-    fun loadBodyData(ctx: Context) : String {
+    private fun loadBodyData(ctx: Context) : String {
         val prefs = ctx.getSharedPreferences(PREFS_FILENAME, Context.MODE_PRIVATE)
         return prefs.getString(PREFS_BODY_KEY, "") ?: ""
     }
@@ -492,7 +735,7 @@ class MainViewmodel : ViewModel() {
      * Similar to [loadUrlData], but this returns the trust all boolean.
      * Defaults to false.
      */
-    fun loadTrustAllData(ctx: Context) : Boolean {
+    private fun loadTrustAllData(ctx: Context) : Boolean {
         val prefs = ctx.getSharedPreferences(PREFS_FILENAME, Context.MODE_PRIVATE)
         return prefs.getBoolean(PREFS_TRUSTALL_KEY, false)
     }
@@ -503,7 +746,7 @@ class MainViewmodel : ViewModel() {
      * The file will be a list of Pairs that correspond to the key-value
      * pairs of the header.
      */
-    fun loadHeadersData(
+    private fun loadHeadersData(
         ctx: Context
     ) : List<Pair<String, String?>> {
 
@@ -532,6 +775,71 @@ class MainViewmodel : ViewModel() {
 //  classes
 //--------------------------------------------------
 
+/**
+ * Keeps track of states of the UI.
+ */
+class MyUiStruct(
+    val url: String,
+    val body: String,
+    val headerKey: String,
+    val headerValue: String,
+    val trustAll: Boolean
+) {
+    /**
+     * Attempting to override the equals function for this class
+     */
+    override operator fun equals(other: Any?) : Boolean {
+        val b = other as MyUiStruct
+        return (url == b.url) &&
+                (body == b.body) &&
+                (headerKey == b.headerKey) &&
+                (headerValue == b.headerValue) &&
+                (trustAll == b.trustAll)
+    }
+
+    /**
+     * This is needed because I overrode [equals].  Sigh.
+     */
+    override fun hashCode(): Int {
+        var result = url.hashCode()
+        result = 31 * result + body.hashCode()
+        result = 31 * result + headerKey.hashCode()
+        result = 31 * result + headerValue.hashCode()
+        result = 31 * result + trustAll.hashCode()
+        return result
+    }
+
+    companion object {
+        /**
+         * Constructor for no params.  Creates an empty instance.
+         */
+        operator fun invoke(): MyUiStruct {
+            return MyUiStruct(
+                url = "",
+                body = "",
+                headerKey = "",
+                headerValue = "",
+                trustAll = false
+            )
+        }
+
+        /**
+         * Constructor for nulls.
+         *
+         * Unintended side effect: will work for any single item type.
+         */
+        operator fun invoke(param: Any?): MyUiStruct {
+            return MyUiStruct(
+                url = "",
+                body = "",
+                headerKey = "",
+                headerValue = "",
+                trustAll = false
+            )
+        }
+    }
+
+}
 
 /**
  * Responses returned from OkHttp requests are stored in this data
@@ -609,6 +917,10 @@ data class MyResponse(
     }
 }
 
+
+//--------------------------------------------------
+//  constants
+//--------------------------------------------------
 
 private const val TAG = "MainViewmodel"
 
