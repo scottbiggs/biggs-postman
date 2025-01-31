@@ -11,18 +11,22 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeContentPadding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -76,8 +80,7 @@ class MainActivity : ComponentActivity() {
                 val url by viewmodel.uiUrl.collectAsStateWithLifecycle()
                 val sendBody by viewmodel.uiBody.collectAsStateWithLifecycle()
 
-                val headerKey by viewmodel.uiHeaderKey.collectAsStateWithLifecycle()
-                val headerValue by viewmodel.uiHeaderValue.collectAsStateWithLifecycle()
+                val headers by viewmodel.headers.collectAsStateWithLifecycle()
 
                 // for slider
                 val trustAll by viewmodel.uiTrustAll.collectAsStateWithLifecycle()
@@ -169,51 +172,74 @@ class MainActivity : ComponentActivity() {
                             }
 
                             item {
-                                if (landscape) {
-                                    Row(
-                                        modifier = Modifier.padding(
-                                            horizontal = 16.dp,
-                                            vertical = 8.dp
-                                        )
-                                    ) {
-                                        OutlinedTextField(
-                                            modifier = Modifier.padding(horizontal = 8.dp),
-                                            textStyle = TextStyle(fontSize = BIG_FONT_SIZE.sp),
-                                            value = headerKey,
-                                            onValueChange = { viewmodel.changeUiHeaderKey(it) },
-                                            label = { Text(stringResource(R.string.header_key)) }
-                                        )
-                                        OutlinedTextField(
-                                            modifier = Modifier.padding(horizontal = 8.dp),
-                                            textStyle = TextStyle(fontSize = BIG_FONT_SIZE.sp),
-                                            value = headerValue,
-                                            onValueChange = { viewmodel.changeUiHeaderValue(it) },
-                                            label = { Text(stringResource(R.string.header_value)) }
-                                        )
-                                    }
-                                }
-                                else {
-                                    Column(
-                                        modifier = Modifier.padding(
-                                            horizontal = 16.dp,
-                                            vertical = 8.dp
-                                        )
-                                    ) {
-                                        OutlinedTextField(
-                                            modifier = Modifier.padding(horizontal = 8.dp),
-                                            textStyle = TextStyle(fontSize = BIG_FONT_SIZE.sp),
-                                            value = headerKey,
-                                            onValueChange = { viewmodel.changeUiHeaderKey(it) },
-                                            label = { Text(stringResource(R.string.header_key)) }
-                                        )
-                                        OutlinedTextField(
-                                            modifier = Modifier.padding(horizontal = 8.dp),
-                                            textStyle = TextStyle(fontSize = BIG_FONT_SIZE.sp),
-                                            value = headerValue,
-                                            onValueChange = { viewmodel.changeUiHeaderValue(it) },
-                                            label = { Text(stringResource(R.string.header_value)) }
-                                        )
+                                Button(
+                                    onClick = { viewmodel.addHeader("", "") },
+                                    modifier = Modifier
+                                        .padding(top = 18.dp)
+                                ) { Text(stringResource(R.string.add_header)) }
+                            }
 
+                            // the headers
+                            headers.forEach { header ->
+                                item {
+                                    if (landscape) {
+                                        Row(
+                                            modifier = Modifier.padding(
+                                                horizontal = 16.dp,
+                                                vertical = 8.dp
+                                            )
+                                        ) {
+                                            OutlinedTextField(
+                                                modifier = Modifier.padding(horizontal = 8.dp),
+                                                textStyle = TextStyle(fontSize = BIG_FONT_SIZE.sp),
+                                                value = header.first,
+                                                onValueChange = { viewmodel.changeUiHeaderKey(header.first, it) },
+                                                label = { Text(stringResource(R.string.header_key)) }
+                                            )
+                                            OutlinedTextField(
+                                                modifier = Modifier.padding(horizontal = 8.dp),
+                                                textStyle = TextStyle(fontSize = BIG_FONT_SIZE.sp),
+                                                value = header.second,
+                                                onValueChange = { viewmodel.changeUiHeaderValue(header.first, it) },
+                                                label = { Text(stringResource(R.string.header_value)) }
+                                            )
+                                            Button(
+                                                onClick = { viewmodel.removeHeader(header.first) },
+                                                shape = CircleShape,
+                                                contentPadding = PaddingValues(1.dp),
+                                                modifier = Modifier
+                                                    .padding(end = 8.dp, top = 8.dp)
+                                                    .size(28.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Close,
+                                                    contentDescription = "remove"
+                                                )
+                                            }
+                                        }
+                                    } else {
+                                        Column(
+                                            modifier = Modifier.padding(
+                                                horizontal = 16.dp,
+                                                vertical = 8.dp
+                                            )
+                                        ) {
+                                            OutlinedTextField(
+                                                modifier = Modifier.padding(horizontal = 8.dp),
+                                                textStyle = TextStyle(fontSize = BIG_FONT_SIZE.sp),
+                                                value = header.first,
+                                                onValueChange = { viewmodel.changeUiHeaderKey(header.first, it) },
+                                                label = { Text(stringResource(R.string.header_key)) }
+                                            )
+                                            OutlinedTextField(
+                                                modifier = Modifier.padding(horizontal = 8.dp),
+                                                textStyle = TextStyle(fontSize = BIG_FONT_SIZE.sp),
+                                                value = header.second,
+                                                onValueChange = { viewmodel.changeUiHeaderValue(header.first, it) },
+                                                label = { Text(stringResource(R.string.header_value)) }
+                                            )
+
+                                        }
                                     }
                                 }
                             }
@@ -227,7 +253,7 @@ class MainActivity : ComponentActivity() {
                                             ctx = ctx,
                                             url,
                                             body = sendBody,
-                                            headerList = listOf(Pair(headerKey, headerValue)),
+                                            headerList = headers,
                                             trustAll
                                         ) }
                                     ) { Text(stringResource(R.string.get)) }
@@ -236,12 +262,12 @@ class MainActivity : ComponentActivity() {
 
                                     Button(
                                         onClick = {
-                                            Log.d(TAG, "POST button click. bodyStr = $sendBody, header = $headerKey, $headerValue")
+                                            Log.d(TAG, "POST button click. bodyStr = $sendBody, headers = $headers")
                                             viewmodel.post(
                                                 ctx = ctx,
                                                 url = url,
                                                 bodyStr = sendBody,
-                                                headerList = listOf(Pair(headerKey, headerValue)),
+                                                headerList = headers,
                                                 trustAll = trustAll
                                             )
                                         }
@@ -251,12 +277,12 @@ class MainActivity : ComponentActivity() {
 
                                     Button(
                                         onClick = {
-                                            Log.d(TAG, "PUT button click. bodyStr = $sendBody, header = $headerKey, $headerValue")
+                                            Log.d(TAG, "PUT button click. bodyStr = $sendBody, headers = $headers")
                                             viewmodel.put(
                                                 ctx = ctx,
                                                 url = url,
                                                 bodyStr = sendBody,
-                                                headerList = listOf(Pair(headerKey, headerValue)),
+                                                headerList = headers,
                                                 trustAll = trustAll
                                             )
                                         }

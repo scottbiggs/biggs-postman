@@ -59,11 +59,8 @@ class MainViewmodel : ViewModel() {
     private val _uiBody = MutableStateFlow("")
     var uiBody = _uiBody.asStateFlow()
 
-    private val _uiHeaderKey = MutableStateFlow("")
-    var uiHeaderKey = _uiHeaderKey.asStateFlow()
-
-    private val _uiHeaderValue = MutableStateFlow("")
-    var uiHeaderValue = _uiHeaderValue.asStateFlow()
+    private val _headers = MutableStateFlow(listOf<Pair<String, String>>())
+    var headers = _headers.asStateFlow()
 
     private val _uiTrustAll = MutableStateFlow(false)
     var uiTrustAll = _uiTrustAll.asStateFlow()
@@ -142,12 +139,85 @@ class MainViewmodel : ViewModel() {
         _uiBody.value = newBody
     }
 
-    fun changeUiHeaderKey(newHeaderKey: String) {
-        _uiHeaderKey.value = newHeaderKey
+    fun addHeader(key: String, value: String) {
+        _headers.value = headers.value + listOf(Pair(key, value))
     }
 
-    fun changeUiHeaderValue(newHeaderValue: String) {
-        _uiHeaderValue.value = newHeaderValue
+    /**
+     * Returns null if not found.
+     */
+    fun getHeaderValue(key: String) : String? {
+        // find the index with this key
+        var index = 0
+        for (i in 0 until headers.value.size) {
+            if (headers.value[i].first == key) {
+                return headers.value[i].second
+            }
+        }
+        return null
+    }
+
+    fun clearHeaders() {
+        _headers.value = listOf()
+    }
+
+    fun removeHeader(key: String) {
+        // find the index with this key
+        val tmpHeaders = headers.value.toMutableList()
+
+        var index = 0
+        for (i in 0 until tmpHeaders.size) {
+            if (tmpHeaders[i].first == key) {
+                index = i
+                break
+            }
+        }
+        tmpHeaders.removeAt(index)
+        _headers.value = tmpHeaders
+    }
+
+
+    /**
+     * Nothing is done if the header isn't found.
+     */
+    fun changeUiHeaderKey(oldHeaderKey: String, newHeaderKey: String) {
+
+        val newHeaders = mutableListOf<Pair<String, String>>()
+        headers.value.forEach { header ->
+            val value = header.second
+
+            // If this is the old key, change it to the new key
+            val key = if (header.first == oldHeaderKey) {
+                newHeaderKey
+            }
+            else {
+                header.first
+            }
+            // and rebuild our list
+            newHeaders.add(Pair(key, value))
+        }
+        // write the data to the flow
+        _headers.value = newHeaders
+    }
+
+    /**
+     * If the key can't be found, nothing is done.
+     */
+    fun changeUiHeaderValue(oldHeaderKey: String, newHeaderValue: String) {
+
+        // similar to above function
+        val newHeaders = mutableListOf<Pair<String, String>>()
+        headers.value.forEach { header ->
+            val key = header.first
+            val value = if (header.first == oldHeaderKey) {
+                newHeaderValue
+            }
+            else {
+                header.second
+            }
+            newHeaders.add(Pair(key, value))
+        }
+        _headers.value = newHeaders
     }
 
     fun changeUiTrustAll(newTrustAll: Boolean) {
@@ -275,8 +345,7 @@ class MainViewmodel : ViewModel() {
         return MyUiStruct(
             url = uiUrl.value,
             body = uiBody.value,
-            headerKey = uiHeaderKey.value,
-            headerValue = uiHeaderValue.value,
+            headers = headers.value,
             trustAll = uiTrustAll.value
         )
     }
@@ -285,16 +354,14 @@ class MainViewmodel : ViewModel() {
         newUiState: MyUiStruct = MyUiStruct(
             url = "",
             body = "",
-            headerKey = "",
-            headerValue = "",
+            headers = listOf(),
             trustAll = false
         )
     ) {
         with(newUiState) {
             _uiUrl.value = url
             _uiBody.value = body
-            _uiHeaderKey.value = headerKey
-            _uiHeaderValue.value = headerValue
+            _headers.value = headers.toMutableList()
             _uiTrustAll.value = trustAll
         }
     }
@@ -705,9 +772,8 @@ class MainViewmodel : ViewModel() {
         _uiTrustAll.value = loadTrustAllData(ctx)
 
         val headerList = loadHeadersData(ctx)
-        if (headerList.isNotEmpty()) {
-            _uiHeaderKey.value = headerList[0].first
-            _uiHeaderValue.value = headerList[0].second ?: ""
+        headerList.forEach { header ->
+            addHeader(header.first, header.second ?: "")
         }
 
         // remember this
@@ -781,8 +847,7 @@ class MainViewmodel : ViewModel() {
 class MyUiStruct(
     val url: String,
     val body: String,
-    val headerKey: String,
-    val headerValue: String,
+    val headers: List<Pair<String, String>> = listOf(),
     val trustAll: Boolean
 ) {
     /**
@@ -790,10 +855,22 @@ class MyUiStruct(
      */
     override operator fun equals(other: Any?) : Boolean {
         val b = other as MyUiStruct
+        // are all the headers there?
+        if (b.headers.size == headers.size) {
+            headers.forEachIndexed {i, header ->
+                if (header != b.headers[i]) {
+                    // header doesn't match!
+                    return false
+                }
+            }
+        }
+        else {
+            // headers not same size--nope!
+            return false
+        }
+
         return (url == b.url) &&
                 (body == b.body) &&
-                (headerKey == b.headerKey) &&
-                (headerValue == b.headerValue) &&
                 (trustAll == b.trustAll)
     }
 
@@ -802,10 +879,9 @@ class MyUiStruct(
      */
     override fun hashCode(): Int {
         var result = url.hashCode()
-        result = 31 * result + body.hashCode()
-        result = 31 * result + headerKey.hashCode()
-        result = 31 * result + headerValue.hashCode()
-        result = 31 * result + trustAll.hashCode()
+        result += 31 * result + body.hashCode()
+        result += 31 * result + headers.hashCode()
+        result += 31 * result + trustAll.hashCode()
         return result
     }
 
@@ -817,8 +893,7 @@ class MyUiStruct(
             return MyUiStruct(
                 url = "",
                 body = "",
-                headerKey = "",
-                headerValue = "",
+                headers = listOf(),
                 trustAll = false
             )
         }
@@ -832,8 +907,7 @@ class MyUiStruct(
             return MyUiStruct(
                 url = "",
                 body = "",
-                headerKey = "",
-                headerValue = "",
+                headers = listOf(),
                 trustAll = false
             )
         }
